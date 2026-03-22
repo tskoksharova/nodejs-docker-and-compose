@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  # База данных
+  postgres:
+    image: postgres:15-alpine
+    container_name: kupipodariday-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # ports:
+      # - "5432:5432"
+    networks:
+      - kupipodariday-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Бэкенд
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kupipodariday-backend
+    restart: always
+    environment:
+      # Прокидываем переменные из .env
+      PORT: ${BACKEND_PORT}
+      DATABASE_TYPE: postgres
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${POSTGRES_USER}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_NAME: ${POSTGRES_DB}
+      DATABASE_SYNCHRONIZE: ${DATABASE_SYNCHRONIZE}
+      JWT_KEY: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kupipodariday-network
+
+  # Фронтенд (пока закомментируем, добавим позже)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kupipodariday-frontend
+    restart: always
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    networks:
+      - kupipodariday-network
+
+# Тома для хранения данных БД
+volumes:
+  postgres_data:
+    name: kupipodariday-postgres-data
+
+# Внутренняя сеть
+networks:
+  kupipodariday-network:
+    driver: bridge
